@@ -310,10 +310,6 @@ ssize_t Sio_puts(char s[])
     return n;
 }
 
-void Sio_error(char s[])
-{
-    sio_error(s);
-}
 
 /********************************
  * Wrappers for Unix I/O routines

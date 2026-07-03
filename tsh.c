@@ -41,6 +41,7 @@ char prompt[] = "tsh> ";    /* command line prompt (DO NOT CHANGE) */
 int verbose = 0;            /* if true, print additional output */
 int nextjid = 1;            /* next job ID to allocate */
 char sbuf[MAXLINE];         /* for composing sprintf messages */
+volatile sig_atomic_t pid;
 
 struct job_t {              /* The job struct */
     pid_t pid;              /* job PID */
@@ -97,6 +98,85 @@ handler_t *Signal(int signum, handler_t *handler);
 }
  $end unixerror */
 
+static size_t sio_strlen(char s[])
+{
+    int i = 0;
+
+    while (s[i] != '\0')
+        ++i;
+    return i;
+}
+
+ssize_t sio_puts(char s[]) /* Put string */
+{
+    return write(STDOUT_FILENO, s, sio_strlen(s)); //line:csapp:siostrlen
+}
+
+pid_t Waitpid(pid_t pid, int *iptr, int options) 
+{
+    pid_t retpid;
+
+    if ((retpid  = waitpid(pid, iptr, options)) < 0) 
+	unix_error("Waitpid error");
+    return(retpid);
+}
+
+void Sio_error(char s[])
+{
+    sio_puts(s);
+    _exit(1);                                      //line:csapp:sioexit
+}
+void Sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
+{
+    if (sigprocmask(how, set, oldset) < 0)
+	unix_error("Sigprocmask error");
+    return;
+}
+
+void Sigemptyset(sigset_t *set)
+{
+    if (sigemptyset(set) < 0)
+	unix_error("Sigemptyset error");
+    return;
+}
+
+void Sigfillset(sigset_t *set)
+{ 
+    if (sigfillset(set) < 0)
+	unix_error("Sigfillset error");
+    return;
+}
+
+void Sigaddset(sigset_t *set, int signum)
+{
+    if (sigaddset(set, signum) < 0)
+	unix_error("Sigaddset error");
+    return;
+}
+
+void Sigdelset(sigset_t *set, int signum)
+{
+    if (sigdelset(set, signum) < 0)
+	unix_error("Sigdelset error");
+    return;
+}
+
+int Sigismember(const sigset_t *set, int signum)
+{
+    int rc;
+    if ((rc = sigismember(set, signum)) < 0)
+	unix_error("Sigismember error");
+    return rc;
+}
+
+int Sigsuspend(const sigset_t *set)
+{
+    int rc = sigsuspend(set); /* always returns -1 */
+    if (errno != EINTR)
+        unix_error("Sigsuspend error");
+    return rc;
+}
+
 void posix_error(int code, char *msg) /* Posix-style error */
 {
     fprintf(stderr, "%s: %s\n", msg, strerror(code));
@@ -143,15 +223,6 @@ pid_t Wait(int *status)
     return pid;
 }
 /* $end wait */
-
-pid_t Waitpid(pid_t pid, int *iptr, int options)
-{
-    pid_t retpid;
-
-    if ((retpid  = waitpid(pid, iptr, options)) < 0)
-	unix_error("Waitpid error");
-    return(retpid);
-}
 
 /* $begin kill */
 void Kill(pid_t pid, int signum)
@@ -274,23 +345,38 @@ void eval(char *cmdline) {
     char *argv[MAXARGS];
     char buf[MAXLINE];
     int bg;
-    pid_t pid;
-
+    sigset_t mask, mask_all, prev;
+    
     strncpy(buf, cmdline, MAXLINE);
     bg = parseline(buf, argv);
     if (argv[0] == NULL) {
         return;
-    }
+    } // ignore empty lines
 
+    Sigemptyset(&mask);
+    Sigaddset(&mask, SIGCHLD);
+    Sigfillset(&mask_all);
+ 
     if (!builtin_cmd(argv)) { //built-in command will automatically run the built in command it finds if true
+        Sigprocmask(SIG_BLOCK, &mask, &prev);
         if ((pid = Fork()) == 0) {
+            Setpgid(0, 0);
+            Sigprocmask(SIG_BLOCK, &prev, NULL);
             Execve(argv[0], argv, environ);
         }
+        Sigprocmask(SIG_BLOCK, &mask_all, NULL);
         if (!bg) {
+            addjob(jobs, pid, FG, cmdline);
+            Sigprocmask(SIG_BLOCK, &mask, NULL);
             int status;
-            Waitpid(0, &status, 0);
-            Setpgid(0,0);
+            pid = 0;
+            while(!pid) {
+                sigsuspend(&prev);
+            }
+            Sigprocmask(SIG_BLOCK, &prev, NULL);
         } else {
+            addjob(jobs, pid, BG, cmdline);
+            Sigprocmask(SIG_BLOCK, &prev, NULL);
             printf("%d %s", pid, cmdline);
         }
     }
@@ -407,9 +493,20 @@ void waitfg(pid_t pid)
  *     available zombie children, but doesn't wait for any other
  *     currently running children to terminate.
  */
-void sigchld_handler(int sig)
-{
-    return;
+void sigchld_handler(int sig) {
+    int olderrno = errno;
+    sigset_t mask, prev;
+
+    Sigfillset(&mask);
+    while ((pid = Waitpid(-1, NULL, 0)) > 0) {
+        Sigprocmask(SIG_BLOCK, &mask, &prev);
+        deletejob(jobs, (pid_t)pid);
+        Sigprocmask(SIG_BLOCK, &prev, NULL);
+    }
+    if (errno != ECHILD) {
+        Sio_error("waitpid error");
+    }
+    errno = olderrno;
 }
 
 /*
