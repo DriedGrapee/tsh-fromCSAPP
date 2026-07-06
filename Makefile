@@ -39,6 +39,9 @@ mystop: helpers/mystop.c
 myint: helpers/myint.c
 	$(CC) $(CFLAGS) -o $@ $<
 
+# Build all standalone helper programs (myspin, mysplit, mystop, myint)
+helpers: myspin mysplit mystop myint
+
 ##################
 # Regression tests
 ##################
