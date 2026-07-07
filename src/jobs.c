@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "jobs.h"
+#include "wrappers.h"
 
 struct job_t jobs[MAXJOBS];  /* The job list */
 static int nextjid = 1;      /* next job ID to allocate */
@@ -17,6 +18,21 @@ void clearjob(struct job_t *job) {
     job->jid = 0;
     job->state = UNDEF;
     job->cmdline[0] = '\0';
+}
+
+int getjobstate(struct job_t *job, char *buf, int buf_size) {
+    if (buf_size < 12) {
+        unix_error("buffer too small");
+        return -1;
+    }
+    switch (job->state) {
+        case UNDEF: snprintf(buf, 11, "%s", "Undefined");
+        case FG: snprintf(buf, 12, "%s", "Foreground");
+        case BG: snprintf(buf, 12, "%s", "Background");
+        case ST: snprintf(buf, 9, "%s", "Stopped");
+        default: snprintf(buf, 11, "%s", "Undefined");
+    }
+    return 0;
 }
 
 /* initjobs - Initialize the job list */

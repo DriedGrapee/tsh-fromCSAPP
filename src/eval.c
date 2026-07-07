@@ -5,11 +5,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "eval.h"
 #include "jobs.h"
 #include "tsh.h"
 #include "wrappers.h"
+
+#define BUFF_SIZE 12
 
 extern char **environ; /* defined in libc */
 
@@ -44,7 +47,12 @@ void eval(char *cmdline) {
         Sigprocmask(SIG_BLOCK, &mask, &prev);
         if ((pid = Fork()) == 0) {
             Setpgid(0, 0);
-            Sigprocmask(SIG_SETMASK, &prev, NULL);
+            /*
+            sio_puts("child pid: ");
+            Sio_putl((long)getpid());
+            sio_puts("\n");
+            */ 
+            Sigprocmask(SIG_SETMASK, &prev, NULL); // should this be before or after execve?
             Execve(argv[0], argv, environ);
         }
         Sigprocmask(SIG_BLOCK, &mask_all, NULL);
@@ -60,7 +68,7 @@ void eval(char *cmdline) {
         } else { // don't want to run this if, execve is going to error because the path doesn't exist
             addjob(jobs, pid, BG, cmdline); // maybe
             Sigprocmask(SIG_SETMASK, &prev, NULL);
-            printf("%d %s", pid, cmdline);
+            printf("[%d] (%d) Running %s", pid2jid(pid), pid, cmdline);
         }
     }
     return;

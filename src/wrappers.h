@@ -19,7 +19,10 @@ void dns_error(char *msg);
 
 /* Async-signal-safe I/O (safe to call from signal handlers) */
 ssize_t sio_puts(char s[]);
+ssize_t sio_putl(long v);
 void Sio_error(char s[]);
+ssize_t Sio_puts(char s[]);
+ssize_t Sio_putl(long v);
 
 /* Wrappers for Unix process control functions */
 pid_t Fork(void);
