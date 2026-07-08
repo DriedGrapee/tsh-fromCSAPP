@@ -189,3 +189,15 @@ void listjobs(struct job_t *jobs)
 	}
     }
 }
+
+int getjidofmostrecentjobwithstate(struct job_t *jobs, int state)
+{
+    int i;
+    int jid = 0;
+    for (i = MAXJOBS - 1; i >= 0; i--) {
+    	if (jobs[i].state == state) {
+    	    jid = jobs[i].jid;
+    	}
+    }
+    return jid;
+}

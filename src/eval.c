@@ -160,7 +160,16 @@ int builtin_cmd(char **argv) {
  */
 void do_bgfg(char **argv)
 {
-    return;
+    int jid;
+    if (argv[0] == NULL) {
+        return;
+    } else if (argv[0][0] == 'b') {
+        if ((jid = getjidofmostrecentjobwithstate(jobs, ST)) != 0) {
+            jobs[jid - 1].state = BG;
+            kill(jobs[jid - 1].pid, SIGCONT);
+        }
+    } else if (argv[0][0] == 'f') {
+    }
 }
 
 /*

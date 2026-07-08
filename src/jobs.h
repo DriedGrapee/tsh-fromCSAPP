@@ -46,5 +46,6 @@ struct job_t *getjobjid(struct job_t *jobs, int jid);
 int pid2jid(pid_t pid);
 void listjobs(struct job_t *jobs);
 int getjobstate(struct job_t *job, char *buf, int buf_size);
+int getjidofmostrecentjobwithstate(struct job_t *jobs, int state);
 
 #endif /* JOBS_H */
