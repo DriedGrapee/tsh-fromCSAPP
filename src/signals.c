@@ -32,23 +32,28 @@ void sigchld_handler(int sig) {
     while ((tmp = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) { // no hang so that if no child is ready, we don't block
         Sigprocmask(SIG_BLOCK, &mask, &prev);
         pid = tmp ? tmp : pid;
-        int signal = WTERMSIG(status);
         if (WIFSIGNALED(status)) { // checks if the child was signaled
             //Sio_puts("\n");
             Sio_puts("Job [");
             Sio_putl((long)pid2jid((pid_t)pid));
             Sio_puts("] (");
             Sio_putl((long)pid);
-            if (signal == SIGTSTP) {
-                stopjob(jobs, (pid_t)pid);
-                Sio_puts(") stopped by signal ");
-            } else if (signal == SIGINT) {
-                deletejob(jobs, (pid_t)pid);
-                Sio_puts(") terminated by signal ");
-            }
-            Sio_putl((long)signal); // prints the signal number
+            Sio_puts(") terminated by signal ");
+            Sio_putl((long)WTERMSIG(status)); // prints the signal number
             Sio_puts("\n");
-        }  
+            deletejob(jobs, (pid_t)pid);
+        } else if (WIFSTOPPED(status)) {
+            Sio_puts("Job [");
+            Sio_putl((long)pid2jid((pid_t)pid));
+            Sio_puts("] (");
+            Sio_putl((long)pid);
+            Sio_puts(") stopped by signal ");
+            Sio_putl((long)WSTOPSIG(status));
+            Sio_puts("\n");
+            stopjob(jobs, (pid_t)pid);
+        } else {
+            deletejob(jobs, (pid_t)pid);
+        } 
         Sigprocmask(SIG_SETMASK, &prev, NULL);
     }
     if (tmp == -1) {
