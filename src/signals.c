@@ -29,10 +29,10 @@ void sigchld_handler(int sig) {
     Sigfillset(&mask);
     pid_t tmp;
 
-    while ((tmp = waitpid(-1, &status, WNOHANG)) > 0) { // no hang so that if no child is ready, we don't block
+    while ((tmp = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) { // no hang so that if no child is ready, we don't block
         Sigprocmask(SIG_BLOCK, &mask, &prev);
         pid = tmp ? tmp : pid;
-        if (WIFSIGNALED(status)) { // checks if the child was terminated by signal
+        if (WIFSIGNALED(status)) { // checks if the child was signaled
             //Sio_puts("\n");
             Sio_puts("Job [");
             Sio_putl((long)pid2jid((pid_t)pid));
@@ -41,8 +41,19 @@ void sigchld_handler(int sig) {
             Sio_puts(") terminated by signal ");
             Sio_putl((long)WTERMSIG(status)); // prints the signal number
             Sio_puts("\n");
-        }
-        deletejob(jobs, (pid_t)pid);
+            deletejob(jobs, (pid_t)pid);
+        } else if (WIFSTOPPED(status)) {
+            Sio_puts("Job [");
+            Sio_putl((long)pid2jid((pid_t)pid));
+            Sio_puts("] (");
+            Sio_putl((long)pid);
+            Sio_puts(") stopped by signal ");
+            Sio_putl((long)WSTOPSIG(status));
+            Sio_puts("\n");
+            stopjob(jobs, (pid_t)pid);
+        } else {
+            deletejob(jobs, (pid_t)pid);
+        } 
         Sigprocmask(SIG_SETMASK, &prev, NULL);
     }
     if (tmp == -1) {
@@ -96,6 +107,7 @@ void sigtstp_handler(int sig)
     if (fg_pid != 0)
         kill(-fg_pid, SIGTSTP);
     else {
+        Sio_puts("stopping tsh");
         putchar('\n');
         exit(0);
     }

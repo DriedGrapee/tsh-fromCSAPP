@@ -89,11 +89,27 @@ int deletejob(struct job_t *jobs, pid_t pid)
 	return 0;
 
     for (i = 0; i < MAXJOBS; i++) {
-	if (jobs[i].pid == pid) {
-	    clearjob(&jobs[i]);
-	    nextjid = maxjid(jobs)+1;
-	    return 1;
-	}
+    	if (jobs[i].pid == pid) {
+    	    clearjob(&jobs[i]);
+    	    nextjid = maxjid(jobs)+1;
+    	    return 1;
+    	}
+    }
+    return 0;
+}
+
+int stopjob(struct job_t *jobs, pid_t pid)
+{
+    int i;
+
+    if (pid < 1)
+	return 0;
+
+    for (i = 0; i < MAXJOBS; i++) {
+    	if (jobs[i].pid == pid) {
+    	    jobs[i].state = ST;
+    	    return 1;
+    	}
     }
     return 0;
 }
