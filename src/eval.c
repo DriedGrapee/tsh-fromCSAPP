@@ -68,7 +68,7 @@ void eval(char *cmdline) {
         } else { // don't want to run this if, execve is going to error because the path doesn't exist
             addjob(jobs, pid, BG, cmdline); // maybe
             Sigprocmask(SIG_SETMASK, &prev, NULL);
-            printf("[%d] (%d) Running %s", pid2jid(pid), pid, cmdline);
+            printf("[%d] (%d) %s", pid2jid(pid), pid, cmdline);
         }
     }
     return;
