@@ -164,11 +164,36 @@ void do_bgfg(char **argv)
     if (argv[0] == NULL) {
         return;
     } else if (argv[0][0] == 'b') {
+        if (argv[1] == NULL) {
+            if ((jid = getjidofmostrecentjobwithstate(jobs, ST)) != 0) {
+                jobs[jid - 1].state = BG;
+                kill(jobs[jid - 1].pid, SIGCONT);
+            }
+        }
+        if (argv[1] != NULL) {
+            if (argv[1][0] == '%') {
+                jid = atoi(argv[1]+1);
+                if (jid == 0) {
+                    printf("%s: No such job\n", argv[1]);
+                    return;
+                }
+                jobs[jid - 1].state = BG;
+                kill(jobs[jid - 1].pid, SIGCONT);
+            } else {
+                int jid = pid2jid(atoi(argv[1]));
+                if (jid == 0) {
+                    printf("%s: No such job\n", argv[1]);
+                    return;
+                }
+                jobs[jid - 1].state = BG;
+                kill(jobs[jid - 1].pid, SIGCONT);
+            }
+        }
+    } else if (argv[0][0] == 'f') {
         if ((jid = getjidofmostrecentjobwithstate(jobs, ST)) != 0) {
             jobs[jid - 1].state = BG;
             kill(jobs[jid - 1].pid, SIGCONT);
         }
-    } else if (argv[0][0] == 'f') {
     }
 }
 
