@@ -20,46 +20,48 @@
  *     received a SIGSTOP or SIGTSTP signal. The handler reaps all
  *     available zombie children, but doesn't wait for any other
  *     currently running children to terminate.
+ *
+ *     The handler's ONLY shared state with the main program is the job
+ *     list, always mutated under a full signal block. It deliberately
+ *     does not report WHICH child it reaped: one SIGCHLD delivery can
+ *     represent several coalesced deaths, so "last pid reaped" is
+ *     reap-order-dependent and racy. waitfg() instead watches the job
+ *     list for the fg job to disappear (deletejob) or stop (stopjob).
  */
 void sigchld_handler(int sig) {
     int olderrno = errno;
     int status;
     sigset_t mask, prev;
+    pid_t reaped;
 
     Sigfillset(&mask);
-    pid_t tmp;
 
-    while ((tmp = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) { // no hang so that if no child is ready, we don't block
+    while ((reaped = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) { // no hang so that if no child is ready, we don't block
         Sigprocmask(SIG_BLOCK, &mask, &prev);
-        pid = tmp ? tmp : pid;
         if (WIFSIGNALED(status)) { // checks if the child was signaled
-            //Sio_puts("\n");
             Sio_puts("Job [");
-            Sio_putl((long)pid2jid((pid_t)pid));
+            Sio_putl((long)pid2jid(reaped));
             Sio_puts("] (");
-            Sio_putl((long)pid);
+            Sio_putl((long)reaped);
             Sio_puts(") terminated by signal ");
             Sio_putl((long)WTERMSIG(status)); // prints the signal number
             Sio_puts("\n");
-            deletejob(jobs, (pid_t)pid);
+            deletejob(jobs, reaped);
         } else if (WIFSTOPPED(status)) {
             Sio_puts("Job [");
-            Sio_putl((long)pid2jid((pid_t)pid));
+            Sio_putl((long)pid2jid(reaped));
             Sio_puts("] (");
-            Sio_putl((long)pid);
+            Sio_putl((long)reaped);
             Sio_puts(") stopped by signal ");
             Sio_putl((long)WSTOPSIG(status));
             Sio_puts("\n");
-            stopjob(jobs, (pid_t)pid);
+            stopjob(jobs, reaped);
         } else {
-            deletejob(jobs, (pid_t)pid);
-        } 
+            deletejob(jobs, reaped);
+        }
         Sigprocmask(SIG_SETMASK, &prev, NULL);
     }
-    if (tmp == -1) {
-        pid = -1;
-    }
-    if (tmp != 0 && errno != ECHILD) {
+    if (reaped == -1 && errno != ECHILD) { // errno is only meaningful when waitpid returned -1
         Sio_error("waitpid error");
     }
     errno = olderrno;

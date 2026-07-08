@@ -23,7 +23,6 @@
 char prompt[] = "tsh> ";    /* command line prompt (DO NOT CHANGE) */
 int verbose = 0;            /* if true, print additional output */
 char sbuf[MAXLINE];         /* for composing sprintf messages */
-volatile sig_atomic_t pid;
 /* End global variables */
 
 static void usage(void);

@@ -8,16 +8,15 @@
 #ifndef TSH_H
 #define TSH_H
 
-#include <signal.h>
-
 /* Misc manifest constants */
 #define MAXLINE    1024   /* max line size */
 #define MAXARGS     128   /* max args on a command line */
 
-/* Global shell state (defined in tsh.c) */
+/* Global shell state (defined in tsh.c).
+ * Note: there is deliberately no shared handler<->main pid variable;
+ * signal handlers communicate with the main program only through the
+ * job list (see jobs.h), always mutated with signals blocked. */
 extern int verbose;               /* if true, print additional output */
 extern char sbuf[MAXLINE];        /* for composing sprintf messages */
-extern volatile sig_atomic_t pid; /* set by eval's fork, cleared/updated by
-                                     sigchld_handler while waiting for fg job */
 
 #endif /* TSH_H */

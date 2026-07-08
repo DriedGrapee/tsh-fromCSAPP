@@ -1,6 +1,7 @@
 /*
  * eval.c - Command-line evaluation
  */
+#include <bits/types/sigset_t.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,6 +32,7 @@ void eval(char *cmdline) {
     char *argv[MAXARGS];
     char buf[MAXLINE];
     int bg;
+    pid_t pid;
     sigset_t mask, mask_all, prev;
 
     strncpy(buf, cmdline, MAXLINE);
@@ -58,12 +60,8 @@ void eval(char *cmdline) {
         Sigprocmask(SIG_BLOCK, &mask_all, NULL);
         if (!bg) {
             addjob(jobs, pid, FG, cmdline);
-            Sigprocmask(SIG_SETMASK, &mask, NULL);
-            int status;
-            pid = 0;
-            while(!pid) {
-                sigsuspend(&prev);
-            }
+            Sigprocmask(SIG_SETMASK, &mask, NULL); /* keep only SIGCHLD blocked */
+            waitfg(pid);
             Sigprocmask(SIG_SETMASK, &prev, NULL);
         } else { // don't want to run this if, execve is going to error because the path doesn't exist
             addjob(jobs, pid, BG, cmdline); // maybe
@@ -166,9 +164,22 @@ void do_bgfg(char **argv)
 }
 
 /*
- * waitfg - Block until process pid is no longer the foreground process
+ * waitfg - Block until process pid is no longer the foreground process.
+ *
+ * Precondition: caller has SIGCHLD blocked, so the fgpid() check cannot
+ * race with sigchld_handler. sigsuspend atomically unblocks everything
+ * and sleeps; the handler updates the job list (deletejob/stopjob), and
+ * on return the check re-runs with SIGCHLD blocked again. The condition
+ * is on the JOB LIST, not on which child was reaped last, so it is
+ * immune to reap order and to coalesced SIGCHLDs. It also exits when
+ * the fg job is stopped (state ST), since fgpid only matches state FG.
  */
 void waitfg(pid_t pid)
 {
-    return;
+    sigset_t empty;
+
+    Sigemptyset(&empty);
+    while (fgpid(jobs) == pid) {
+        sigsuspend(&empty);
+    }
 }
