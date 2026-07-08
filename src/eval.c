@@ -168,9 +168,9 @@ void do_bgfg(char **argv)
             if ((jid = getjidofmostrecentjobwithstate(jobs, ST)) != 0) {
                 jobs[jid - 1].state = BG;
                 kill(jobs[jid - 1].pid, SIGCONT);
+                return;
             }
-        }
-        if (argv[1] != NULL) {
+        } else {
             if (argv[1][0] == '%') {
                 jid = atoi(argv[1]+1);
                 if (jid == 0) {
@@ -179,7 +179,7 @@ void do_bgfg(char **argv)
                 }
                 jobs[jid - 1].state = BG;
                 kill(jobs[jid - 1].pid, SIGCONT);
-            } else {
+            } else { // should now check if argv[1][0] is a number
                 int jid = pid2jid(atoi(argv[1]));
                 if (jid == 0) {
                     printf("%s: No such job\n", argv[1]);
@@ -187,13 +187,32 @@ void do_bgfg(char **argv)
                 }
                 jobs[jid - 1].state = BG;
                 kill(jobs[jid - 1].pid, SIGCONT);
-            }
+            } // if not a % nor a number, return an error with the message "argument must be a PID or %jobid" 
         }
     } else if (argv[0][0] == 'f') {
-        if ((jid = getjidofmostrecentjobwithstate(jobs, ST)) != 0) {
-            jobs[jid - 1].state = BG;
+        if (argv[1][0] == '%') {
+            jid = atoi(argv[1]+1);
+            if (jid == 0) {
+                printf("%s: No such job\n", argv[1]);
+                return;
+            }
+            jobs[jid - 1].state = FG;
             kill(jobs[jid - 1].pid, SIGCONT);
+            waitfg(jobs[jid - 1].pid); // think about if signal blocking is necessary here
+        } else {
+            int jid = pid2jid(atoi(argv[1]));
+            if (jid == 0) {
+                printf("%s: No such process\n", argv[1]);
+                return;
+            }
+            jobs[jid - 1].state = FG;
+            kill(jobs[jid - 1].pid, SIGCONT);
+            waitfg(jobs[jid - 1].pid); // think about if signal blocking is necessary here
         }
+        /* else {
+            printf("%s: No such job\n", argv[1]);
+            return;
+        } */
     }
 }
 
