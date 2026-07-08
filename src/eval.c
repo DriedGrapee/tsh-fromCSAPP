@@ -35,7 +35,7 @@ void eval(char *cmdline) {
     pid_t pid;
     sigset_t mask, mask_all, prev;
 
-    strncpy(buf, cmdline, MAXLINE);
+    strcpy(buf, cmdline);
     bg = parseline(buf, argv);
     if (argv[0] == NULL) {
         return;
