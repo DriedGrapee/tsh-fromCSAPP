@@ -171,7 +171,12 @@ void do_bgfg(char **argv)
     struct job_t *job;
 
     if (argv[1] == NULL) {              /* no argument: most recent stopped job */
-        job = getjobjid(jobs, getjidofmostrecentjobwithstate(jobs, ST));
+        if (fg) {
+            int tmp1, tmp2;
+            job = getjobjid(jobs, ((tmp1 = getjidofmostrecentjobwithstate(jobs, BG)) > (tmp2 = getjidofmostrecentjobwithstate(jobs, ST))) ? tmp1 : tmp2);
+        } else {
+            job = getjobjid(jobs, getjidofmostrecentjobwithstate(jobs, ST));
+        }
         if (job == NULL)
             return;
     } else if (argv[1][0] == '%') {     /* %jid form */
@@ -191,18 +196,23 @@ void do_bgfg(char **argv)
         return;
     }
 
-    sigset_t mask;
-    sigemptyset(&mask);
-    sigaddset(&mask, SIGCHLD);
-    
-    sigprocmask(SIG_BLOCK, &mask, NULL);
-    
-    job->state = fg ? FG : BG;
-    kill(job->pid, SIGCONT);
-    if (fg)
+    if (fg) {
+        sigset_t mask;
+        sigemptyset(&mask);
+        sigaddset(&mask, SIGCHLD);
+        
+        sigprocmask(SIG_BLOCK, &mask, NULL);
+        
+        job->state = FG;
+        kill(job->pid, SIGCONT);
         waitfg(job->pid); // think about if signal blocking is necessary here
-    
-    sigprocmask(SIG_UNBLOCK, &mask, NULL);
+        
+        sigprocmask(SIG_UNBLOCK, &mask, NULL);
+    } else {
+        job->state = BG;
+        printf("[%d] (%d) %s", job->jid, job->pid, job->cmdline);
+        kill(job->pid, SIGCONT);
+    }
 }
 
 /*
