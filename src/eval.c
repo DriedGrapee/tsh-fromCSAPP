@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <ctype.h>
+
 
 #include "eval.h"
 #include "jobs.h"
@@ -157,63 +159,50 @@ int builtin_cmd(char **argv) {
 
 /*
  * do_bgfg - Execute the builtin bg and fg commands
+ *
+ * Both commands are "resolve the argument to a job, then resume it";
+ * they differ only in the target state and whether we wait. So: one
+ * resolution phase (each branch either sets job or prints and returns),
+ * then one shared action block.
  */
 void do_bgfg(char **argv)
 {
-    int jid;
-    if (argv[0] == NULL) {
-        return;
-    } else if (argv[0][0] == 'b') {
-        if (argv[1] == NULL) {
-            if ((jid = getjidofmostrecentjobwithstate(jobs, ST)) != 0) {
-                jobs[jid - 1].state = BG;
-                kill(jobs[jid - 1].pid, SIGCONT);
-                return;
-            }
-        } else {
-            if (argv[1][0] == '%') {
-                jid = atoi(argv[1]+1);
-                if (jid == 0) {
-                    printf("%s: No such job\n", argv[1]);
-                    return;
-                }
-                jobs[jid - 1].state = BG;
-                kill(jobs[jid - 1].pid, SIGCONT);
-            } else { // should now check if argv[1][0] is a number
-                int jid = pid2jid(atoi(argv[1]));
-                if (jid == 0) {
-                    printf("%s: No such job\n", argv[1]);
-                    return;
-                }
-                jobs[jid - 1].state = BG;
-                kill(jobs[jid - 1].pid, SIGCONT);
-            } // if not a % nor a number, return an error with the message "argument must be a PID or %jobid" 
-        }
-    } else if (argv[0][0] == 'f') {
-        if (argv[1][0] == '%') {
-            jid = atoi(argv[1]+1);
-            if (jid == 0) {
-                printf("%s: No such job\n", argv[1]);
-                return;
-            }
-            jobs[jid - 1].state = FG;
-            kill(jobs[jid - 1].pid, SIGCONT);
-            waitfg(jobs[jid - 1].pid); // think about if signal blocking is necessary here
-        } else {
-            int jid = pid2jid(atoi(argv[1]));
-            if (jid == 0) {
-                printf("%s: No such process\n", argv[1]);
-                return;
-            }
-            jobs[jid - 1].state = FG;
-            kill(jobs[jid - 1].pid, SIGCONT);
-            waitfg(jobs[jid - 1].pid); // think about if signal blocking is necessary here
-        }
-        /* else {
+    int fg = (argv[0][0] == 'f');
+    struct job_t *job;
+
+    if (argv[1] == NULL) {              /* no argument: most recent stopped job */
+        job = getjobjid(jobs, getjidofmostrecentjobwithstate(jobs, ST));
+        if (job == NULL)
+            return;
+    } else if (argv[1][0] == '%') {     /* %jid form */
+        job = getjobjid(jobs, atoi(argv[1] + 1));
+        if (job == NULL) {
             printf("%s: No such job\n", argv[1]);
             return;
-        } */
+        }
+    } else if (isdigit(argv[1][0])) {   /* pid form */
+        job = getjobpid(jobs, (pid_t)atoi(argv[1]));
+        if (job == NULL) {
+            printf("(%s): No such process\n", argv[1]);
+            return;
+        }
+    } else {
+        printf("%s: argument must be a PID or %%jobid\n", argv[0]);
+        return;
     }
+
+    sigset_t mask;
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGCHLD);
+    
+    sigprocmask(SIG_BLOCK, &mask, NULL);
+    
+    job->state = fg ? FG : BG;
+    kill(job->pid, SIGCONT);
+    if (fg)
+        waitfg(job->pid); // think about if signal blocking is necessary here
+    
+    sigprocmask(SIG_UNBLOCK, &mask, NULL);
 }
 
 /*
